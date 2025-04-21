@@ -1,0 +1,347 @@
+From d165a706198a9541faa96e06b12a6e6e67239c1e Mon Sep 17 00:00:00 2001
+From: lukeremy32 <l999r32@gmail.com>
+Date: Thu, 27 Mar 2025 13:26:09 -0400
+Subject: [PATCH] add search results dialogue to see content and remove
+ extraction of google results to reduce latency of search
+
+---
+ lib/agents/tools/search.tsx | 227 ++++++++++++------------------------
+ 1 file changed, 72 insertions(+), 155 deletions(-)
+
+diff --git a/lib/agents/tools/search.tsx b/lib/agents/tools/search.tsx
+index 7258f9e..f0d257f 100644
+--- a/lib/agents/tools/search.tsx
++++ b/lib/agents/tools/search.tsx
+@@ -319,43 +319,30 @@ async function performGoogleSearch(
+       .filter(result => result.link && !result.link.toLowerCase().includes(".pdf"))
+       .slice(0, maxResults);
+ 
+-    console.log(`🔄 Processing ${filteredGoogleResults.length} URLs concurrently...`);
+-
+-    let processedCount = 0;
+-    let successCount = 0;
+-    const queue = new PQueue({ 
+-      concurrency: CONCURRENCY_LIMIT,
+-      timeout: SEARCH_TIMEOUT,
+-      interval: 500,
+-      intervalCap: 5
+-    });
++    console.log(`🔄 Processing ${filteredGoogleResults.length} search results...`);
+ 
+-    const googleSearchPromises = filteredGoogleResults.map((result) => 
+-      queue.add(async () => {
++    // Since we're not fetching full content anymore, we can process results more efficiently
++    const googleSearchPromises = filteredGoogleResults.map((result, index) => 
++      Promise.resolve().then(async () => {
+         const parsedResult = await fetchGoogleResult(result);
+-        processedCount++;
+         if (parsedResult) {
+-          successCount++;
+-          console.log(`✅ [${processedCount}/${filteredGoogleResults.length}] Parsed (${successCount} successful): ${result.link.substring(0, 50)}...`);
++          console.log(`✅ [${index + 1}/${filteredGoogleResults.length}] Processed: ${result.title?.substring(0, 40)}...`);
+         } else {
+-          console.log(`❌ [${processedCount}/${filteredGoogleResults.length}] Failed (${successCount} successful): ${result.link.substring(0, 50)}...`);
++          console.log(`❌ [${index + 1}/${filteredGoogleResults.length}] Failed to process: ${result.title?.substring(0, 40)}...`);
+         }
+         return parsedResult;
+       })
+     );
+ 
+-    const results = await Promise.allSettled(googleSearchPromises);
+-    const validResults = results
+-      .filter((result): result is PromiseFulfilledResult<WebSearchResult> => 
+-        result.status === 'fulfilled' && result.value !== undefined
+-      )
+-      .map(result => result.value);
++    const results = await Promise.all(googleSearchPromises);
++    const validResults = results.filter((result): result is WebSearchResult => result !== undefined);
+ 
+     console.log(`
+ ✨ Search complete:
+-📊 Total processed: ${processedCount}/${filteredGoogleResults.length}
+-✅ Successfully parsed: ${successCount}
+-❌ Failed: ${processedCount - successCount}
++📊 Total results: ${filteredGoogleResults.length}
++✅ Successfully processed: ${validResults.length}
++❌ Failed: ${filteredGoogleResults.length - validResults.length}
++⚡ Response time: Fast (snippet-only mode)
+ `);
+     return validResults;
+   } catch (error) {
+@@ -370,89 +357,19 @@ async function fetchGoogleResult(result: NonNullable<GoogleSearchResponse['items
+   }
+ 
+   try {
+-    const controller = new AbortController();
+-    const timeoutId = setTimeout(() => controller.abort(), SEARCH_TIMEOUT);
+-
+-    const response = await fetch(result.link, {
+-      headers: {
+-        'User-Agent': 'ALFReD Bot (https://impactcapitoldc.com/bot; bot@impactcapitoldc.com)',
+-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+-        'Accept-Language': 'en-US,en;q=0.5',
+-      },
+-      signal: controller.signal
+-    });
+-
+-    clearTimeout(timeoutId);
++    // Skip the actual content fetching and readability parsing
++    // Just use the snippet provided by Google API
++    console.log(`📄 Using snippet directly from Google API for: ${result.link.substring(0, 50)}...`);
+ 
+-    if (!response.ok) {
+-      console.log(`🚫 Failed to fetch: ${result.link.substring(0, 50)}...`);
+-      return undefined;
+-    }
+-
+-    const html = await response.text();
+-    
+-    // Suppress console output from JSDOM and Readability
+-    const originalConsoleError = console.error;
+-    console.error = () => {};
++    // Prepare the content from the snippet
++    const snippet = result.snippet || 'No snippet available';
+     
+-    const dom = new JSDOM(html, {
+-      url: result.link,
+-      pretendToBeVisual: true,
+-    });
+-    const doc = dom.window.document;
+-    const reader = new Readability(doc);
+-    const parsed = reader.parse();
+-    
+-    // Restore console.error
+-    console.error = originalConsoleError;
+-
+-    if (!parsed) {
+-      console.log(`📭 No content parsed from: ${result.link.substring(0, 50)}...`);
+-      return undefined;
+-    }
+-
+-    const mainContent = cleanText(parsed.textContent);
+-    let fullContent = mainContent.length > MAX_CHARACTERS 
+-      ? mainContent.substring(0, MAX_CHARACTERS) + "..."
+-      : mainContent;
+-
+-    // Log a preview of the parsed content
+-    console.log(`
+-📄 Parsed from ${result.link.substring(0, 50)}...
+-Title: ${parsed.title?.substring(0, 100)}
+-Preview: ${parsed.textContent.substring(0, 150)}...
+-Length: ${parsed.textContent.length} chars
+----`);
+-
+-    // Extract PDF links
+-    const pdfLinks = Array.from(doc.querySelectorAll('a[href$=".pdf"]'))
+-      .slice(0, 5)
+-      .map(link => link.getAttribute('href'))
+-      .filter((href): href is string => href !== null)
+-      .map(href => {
+-        try {
+-          return new URL(href, result.link).href;
+-        } catch {
+-          return href;
+-        }
+-      });
+-
+-    if (pdfLinks.length > 0) {
+-      const pdfLinksText = pdfLinks.map(link => `PDF: ${link}`).join('\n');
+-      if (fullContent.length + pdfLinksText.length <= MAX_CHARACTERS) {
+-        fullContent += '\n\n' + pdfLinksText;
+-      }
+-    }
+-
+     // Get the published date from all available sources
+     let datePublished = '';
+     
+-    console.log('Raw pagemap data:', JSON.stringify(result.pagemap, null, 2));
+-    
+     // Try to get date from Google's direct response fields
+     if (result.pagemap?.metatags?.[0]) {
+       const metatags = result.pagemap.metatags[0];
+-      console.log('Available metatags:', Object.keys(metatags));
+       
+       // Try all possible date fields in order of preference
+       datePublished = metatags['article:published_time'] || 
+@@ -471,8 +388,6 @@ Length: ${parsed.textContent.length} chars
+                      metatags['modified_time'] ||
+                      metatags['lastmod'] ||
+                      '';
+-                     
+-      console.log('Date from metatags:', datePublished);
+     }
+ 
+     // If no date in metatags, try other pagemap fields
+@@ -497,12 +412,6 @@ Length: ${parsed.textContent.length} chars
+                          webpage?.datecreated || 
+                          webpage?.datemodified;
+       
+-      console.log('Alternative dates found:', {
+-        newsDate,
+-        articleDate,
+-        webpageDate
+-      });
+-      
+       datePublished = newsDate || articleDate || webpageDate || '';
+     }
+ 
+@@ -524,7 +433,6 @@ Length: ${parsed.textContent.length} chars
+           const parsedDate = new Date(match[0]);
+           if (!isNaN(parsedDate.getTime())) {
+             datePublished = parsedDate.toISOString();
+-            console.log('Date found in snippet:', datePublished);
+             break;
+           }
+         }
+@@ -533,7 +441,6 @@ Length: ${parsed.textContent.length} chars
+ 
+     // If still no date, use current date
+     if (!datePublished) {
+-      console.log('No date found, using current date');
+       datePublished = new Date().toISOString();
+     }
+ 
+@@ -541,33 +448,28 @@ Length: ${parsed.textContent.length} chars
+     try {
+       const parsedDate = new Date(datePublished);
+       if (isNaN(parsedDate.getTime())) {
+-        console.log('Invalid date found:', datePublished);
+         datePublished = new Date().toISOString();
+       } else {
+         // Ensure the date is not in the future
+         const now = new Date();
+         if (parsedDate > now) {
+-          console.log('Future date found, using current date instead');
+           datePublished = now.toISOString();
+         }
+       }
+     } catch (e) {
+-      console.log('Error parsing date:', e);
+       datePublished = new Date().toISOString();
+     }
+ 
+-    console.log('Final date being used:', datePublished);
+-
+     return {
+       name: result.title,
+       url: result.link,
+       snippet: result.snippet || '',
+-      fullContent: fullContent,
++      fullContent: snippet, // Use the snippet as full content
+       source: 'google',
+       datePublished: datePublished,
+     };
+   } catch (error) {
+-    console.log(`💥 Error parsing: ${result.link.substring(0, 50)}... - ${error instanceof Error ? error.message : 'Unknown error'}`);
++    console.log(`💥 Error processing result: ${result.link.substring(0, 50)}... - ${error instanceof Error ? error.message : 'Unknown error'}`);
+     return undefined;
+   }
+ }
+@@ -630,7 +532,7 @@ async function performPineconeSearch(query: string, topK: number, index: any, fr
+     console.log(`🔄 Querying Pinecone with filter:`, JSON.stringify(filter, null, 2));
+     const pineconeQueryResponse = await index.query({
+       vector: embedding,
+-      topK: topK,
++      topK: topK * 2, // Request more results to account for deduplication
+       includeValues: true,
+       includeMetadata: true,
+       filter: filter
+@@ -645,43 +547,58 @@ async function performPineconeSearch(query: string, topK: number, index: any, fr
+ 
+     console.log(`📊 Found ${pineconeQueryResponse.matches.length} initial matches`);
+ 
+-    const results = pineconeQueryResponse.matches
+-      .filter((match: any) => {
+-        if (!match.metadata?.url) {
+-          console.log('❌ Match missing URL:', match);
+-          return false;
+-        }
+-        
+-        // Check if the URL contains our base domain
+-        const matchUrl = match.metadata.url.toLowerCase();
+-        if (baseUrl && !matchUrl.includes(baseUrl.toLowerCase())) {
+-          console.log(`❌ URL filter mismatch: ${matchUrl} vs ${baseUrl}`);
+-          return false;
+-        }
+-        
+-        const keepResult = !matchUrl.includes('impactcapitoldc.com');
+-        if (!keepResult) {
+-          console.log(`❌ Filtered out impactcapitoldc.com URL: ${matchUrl}`);
+-        }
+-        return keepResult;
+-      })
+-      .map((match: any) => ({
+-        title: match.metadata.title || 'No Title',
+-        url: match.metadata.url,
+-        date: match.metadata.publicationDate,
+-        fullContent: match.metadata.content,
+-        context: match.metadata.context,
+-        documentSummary: match.metadata.documentSummary,
+-        qualityScore: match.metadata.qualityScore,
+-        searchTerms: match.metadata.searchTerms,
+-        totalChunks: match.metadata.totalChunks,
+-        chunkIndex: match.metadata.chunkIndex,
+-        isPDF: match.metadata.isPDF,
+-        score: match.score,
+-        source: 'pinecone'
+-      }));
+-
+-    console.log(`✨ Pinecone search complete. Found ${results.length} results\n`);
++    // Map to keep track of the highest-scoring result for each URL
++    const urlMap = new Map<string, any>();
++    
++    // Process each match to deduplicate by URL
++    pineconeQueryResponse.matches.forEach((match: any) => {
++      // Skip if missing URL or matches our exclusion criteria
++      if (!match.metadata?.url) {
++        console.log('❌ Match missing URL:', match);
++        return;
++      }
++      
++      // Check if the URL contains our base domain (if filtering)
++      const matchUrl = match.metadata.url.toLowerCase();
++      if (baseUrl && !matchUrl.includes(baseUrl.toLowerCase())) {
++        console.log(`❌ URL filter mismatch: ${matchUrl} vs ${baseUrl}`);
++        return;
++      }
++      
++      // Skip results from our own domain
++      if (matchUrl.includes('impactcapitoldc.com')) {
++        console.log(`❌ Filtered out impactcapitoldc.com URL: ${matchUrl}`);
++        return;
++      }
++      
++      // Either add the match or update if it has a higher score
++      if (!urlMap.has(matchUrl) || match.score > urlMap.get(matchUrl).score) {
++        urlMap.set(matchUrl, match);
++      }
++    });
++    
++    console.log(`📑 Found ${urlMap.size} unique URLs after deduplication`);
++
++    // Convert our map to an array of results
++    const results = Array.from(urlMap.values()).map((match: any) => ({
++      title: match.metadata.title || 'No Title',
++      url: match.metadata.url,
++      date: match.metadata.publicationDate,
++      fullContent: match.metadata.content,
++      context: match.metadata.context,
++      documentSummary: match.metadata.documentSummary,
++      qualityScore: match.metadata.qualityScore,
++      searchTerms: match.metadata.searchTerms,
++      totalChunks: match.metadata.totalChunks,
++      chunkIndex: match.metadata.chunkIndex,
++      isPDF: match.metadata.isPDF,
++      score: match.score,
++      source: 'pinecone' as const
++    }))
++    .sort((a, b) => b.score - a.score) // Sort by score in descending order
++    .slice(0, topK); // Limit to original topK
++
++    console.log(`✨ Pinecone search complete. Found ${results.length} deduplicated results\n`);
+     console.log('📝 First result URL:', results[0]?.url);
+     return results;
+   } catch (error) {
+-- 
+2.39.5 (Apple Git-154)
+

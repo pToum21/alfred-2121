@@ -1,0 +1,49 @@
+Security Features To Implement
+
+100. Rate Limiting for Auth Endpoints
+- Implement PostgreSQL-based rate limiting for auth endpoints
+- Track attempts by IP address and user email
+- Create rate_limits table with schema:
+  - id UUID PRIMARY KEY
+  - key TEXT NOT NULL (IP or email)
+  - type TEXT NOT NULL (ip_based or user_based) 
+  - attempts INTEGER DEFAULT 1
+  - reset_at TIMESTAMP WITH TIME ZONE
+  - created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+- Add middleware to check/increment rate limits
+- Configure limits:
+  - Max 5 attempts per 15 minutes for login
+  - Max 3 attempts per 15 minutes for TOTP verification
+  - Max 3 attempts per hour for TOTP setup
+- Return 429 Too Many Requests when limit exceeded
+- Add AuthErrorCodes.RATE_LIMIT_EXCEEDED handling
+
+200. Audit Logging for Auth Events
+- Create auth_audit_logs table with schema:
+  - id UUID PRIMARY KEY
+  - event_type TEXT NOT NULL (login, totp_setup, totp_verify, etc)
+  - user_id UUID REFERENCES users(id)
+  - email TEXT
+  - ip_address TEXT
+  - user_agent TEXT
+  - success BOOLEAN NOT NULL
+  - error_code TEXT
+  - metadata JSONB
+  - created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+- Log important auth events:
+  - Login attempts (success/failure)
+  - TOTP setup (initiated/completed)
+  - TOTP verification (success/failure)
+  - Password reset requests
+  - Account lockouts
+- Add utility functions:
+  - logAuthEvent(type, userId, success, metadata)
+  - getRecentAuthEvents(userId, limit)
+  - getFailedAttempts(userId, timeWindow)
+- Add admin interface to view audit logs
+- Implement log retention policy
+- Add logging middleware to auth routes
+
+These features should be implemented with proper error handling, logging, and 
+integration with the existing auth system. The rate limiting should be implemented
+first as it provides critical security against brute force attacks. 

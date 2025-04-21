@@ -1,0 +1,17 @@
+/* IMPORTANT: Light theme is enforced app-wide via theme-provider.tsx */
+
+/* Add these styles to enable custom scrollbar */
+.scrollarea-thumb-y {
+  background-color: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 9999px;
+  width: 6px !important;
+}
+
+.scrollarea-thumb-y:hover {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+}
+
+.scrollarea-track-y {
+  width: 6px !important;
+  right: 2px !important;
+} 

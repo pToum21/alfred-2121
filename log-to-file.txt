@@ -1,0 +1,116 @@
+import debug from 'debug';
+import fs from 'fs/promises';
+import path from 'path';
+
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+class Logger {
+  private static debugLogger = debug('alfred:debug');
+  private static infoLogger = debug('alfred:info');
+  private static warnLogger = debug('alfred:warn');
+  private static errorLogger = debug('alfred:error');
+  private static logDir = path.join(process.cwd(), 'logs');
+  private static currentLogFile: string | null = null;
+
+  static {
+    // Enable debug logging by default
+    debug.enable('alfred:*');
+    
+    // Ensure logs directory exists
+    fs.mkdir(Logger.logDir, { recursive: true }).catch(err => {
+      console.error('Failed to create logs directory:', err);
+    });
+  }
+
+  private static async writeToFile(content: string) {
+    // Create a new log file if one doesn't exist
+    if (!this.currentLogFile) {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      this.currentLogFile = path.join(this.logDir, `conversation-${timestamp}.log`);
+    }
+
+    try {
+      await fs.appendFile(this.currentLogFile, content + '\n', 'utf-8');
+    } catch (error) {
+      console.error('Failed to write to log file:', error);
+    }
+  }
+
+  // Method to start a new conversation log
+  static async startNewConversation() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    this.currentLogFile = path.join(this.logDir, `conversation-${timestamp}.log`);
+    await this.writeToFile('=== New Conversation Started ===\n');
+    return this.currentLogFile;
+  }
+
+  private static formatMessage(source: string, message: string, data?: any): string {
+    const timestamp = new Date().toISOString();
+    const dataString = data ? `\nData: ${JSON.stringify(data, null, 2)}` : '';
+    return `[${timestamp}] [${source}] ${message}${dataString}`;
+  }
+
+  static async debug(source: string, message: string, data?: any) {
+    const formattedMessage = this.formatMessage(source, message, data);
+    this.debugLogger(formattedMessage);
+    await this.writeToFile(formattedMessage);
+  }
+
+  static async info(source: string, message: string, data?: any) {
+    const formattedMessage = this.formatMessage(source, message, data);
+    this.infoLogger(formattedMessage);
+    await this.writeToFile(formattedMessage);
+  }
+
+  static async warn(source: string, message: string, data?: any) {
+    const formattedMessage = this.formatMessage(source, message, data);
+    this.warnLogger(formattedMessage);
+    await this.writeToFile(formattedMessage);
+  }
+
+  static async error(source: string, message: string, data?: any) {
+    const formattedMessage = this.formatMessage(source, message, data);
+    this.errorLogger(formattedMessage);
+    await this.writeToFile(formattedMessage);
+  }
+
+  static async logMessages(source: string, messages: any[]) {
+    const messageData = messages.map(msg => ({
+      role: msg.role,
+      type: msg.type,
+      name: msg.name,
+      contentPreview: typeof msg.content === 'string' 
+        ? msg.content.substring(0, 100) 
+        : 'non-string content'
+    }));
+
+    const formattedMessage = this.formatMessage(source, 'Current messages state:', messageData);
+    this.debug(source, 'Current messages state:', messageData);
+    await this.writeToFile(formattedMessage);
+  }
+
+  static async logConversation(chatId: string, messages: any[]) {
+    // Use the current log file if it exists, otherwise create a new one
+    if (!this.currentLogFile) {
+      await this.startNewConversation();
+    }
+
+    const conversationLog = messages.map(msg => {
+      const role = msg.role.toUpperCase();
+      const content = typeof msg.content === 'string' 
+        ? msg.content 
+        : JSON.stringify(msg.content, null, 2);
+      
+      return `\n[${role}]\n${content}\n${'='.repeat(80)}\n`;
+    }).join('\n');
+
+    try {
+      await this.writeToFile(conversationLog);
+    } catch (error) {
+      console.error('Failed to write conversation log:', error);
+    }
+  }
+}
+
+export default Logger; 
+

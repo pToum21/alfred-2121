@@ -1,0 +1,207 @@
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Newspaper, ChevronRight, Link as LinkIcon, Clock, TrendingUp, Menu } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+
+export default function Component() {
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [recentSearches, setRecentSearches] = useState([
+    'Best neighborhoods for families in Boston',
+    'Average price per sqft in San Francisco',
+    'ROI on rental properties in Austin'
+  ])
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
+  const getGreeting = () => {
+    const hour = currentTime.getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
+  const newsCategories = ['All', 'Residential', 'Commercial', 'Industrial', 'Land']
+
+  const newsArticles = [
+    { id: 1, title: "Housing Market Trends 2023", source: "realtor", favicon: "https://static.rdc.moveaws.com/images/favicon/favicon-16x16.png", date: "2d ago" },
+    { id: 2, title: "Commercial Real Estate Outlook", source: "wsj", favicon: "https://s.wsj.net/img/meta/wsj_favicon-16x16.png", date: "5h ago" },
+    { id: 3, title: "Impact of Remote Work on Real Estate", source: "forbes", favicon: "https://i.forbesimg.com/favicon.ico", date: "1d ago" },
+    { id: 4, title: "Sustainable Building Materials in 2023", source: "architecturaldigest", favicon: "https://www.architecturaldigest.com/favicon.ico", date: "3d ago" },
+    { id: 5, title: "Real Estate Investment Strategies", source: "investopedia", favicon: "https://www.investopedia.com/favicon.ico", date: "12h ago" },
+    { id: 6, title: "Urban Planning Innovations", source: "citylab", favicon: "https://cdn.theatlantic.com/assets/static/b/citylab/img/favicon.ico", date: "4d ago" },
+    { id: 7, title: "Proptech Startups Reshaping Real Estate", source: "techcrunch", favicon: "https://techcrunch.com/wp-content/uploads/2015/02/cropped-cropped-favicon-gradient.png?w=32", date: "1w ago" },
+    { id: 8, title: "Global Real Estate Market Analysis", source: "reuters", favicon: "https://www.reuters.com/pf/resources/images/reuters/favicon.ico?d=133", date: "3h ago" },
+  ]
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-10 bg-background border-b">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              <Menu className="h-6 w-6" />
+            </Button>
+            <h1 className="text-2xl font-bold">AI Dashboard</h1>
+          </div>
+          <div className="hidden md:block">
+            <Card className="shadow-inner bg-primary/5">
+              <CardContent className="p-2">
+                <p className="text-sm font-medium">{getGreeting()}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(currentTime)}</p>
+                <p className="text-sm font-semibold">{formatTime(currentTime)}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8 flex flex-col md:flex-row gap-8">
+        <aside className={`md:w-1/3 space-y-8 ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl font-bold">Questions of the Day</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-6">
+                <li>
+                  <h3 className="font-semibold flex items-center justify-between">
+                    <span>How does AI impact the real estate market?</span>
+                    <TrendingUp className="h-4 w-4 ml-2 text-green-500 flex-shrink-0" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-2">Explore the implications of AI on property valuation and market analysis.</p>
+                  <Button variant="link" className="p-0">
+                    Discuss <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      Zillow Research
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      NAR
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      PropTech Today
+                    </Badge>
+                  </div>
+                </li>
+                <li>
+                  <h3 className="font-semibold flex items-center justify-between">
+                    <span>What are the emerging trends in sustainable real estate?</span>
+                    <TrendingUp className="h-4 w-4 ml-2 text-green-500 flex-shrink-0" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-2">Examine the growing importance of eco-friendly and energy-efficient properties.</p>
+                  <Button variant="link" className="p-0">
+                    Discuss <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      Green Building Council
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      Urban Land Institute
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      <LinkIcon className="h-3 w-3 mr-1" />
+                      Sustainable Real Estate Journal
+                    </Badge>
+                  </div>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+
+          <div className="bg-muted p-4 rounded-lg">
+            <h3 className="text-sm font-semibold flex items-center mb-2">
+              <Clock className="h-4 w-4 mr-2" />
+              Recent Searches
+            </h3>
+            <ul className="space-y-1">
+              {recentSearches.map((search, index) => (
+                <li key={index} className="text-xs text-muted-foreground truncate">
+                  <Link href={`/search?q=${encodeURIComponent(search)}`} className="hover:underline">
+                    {search}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        <section className="md:w-2/3">
+          <Card>
+            <CardHeader className="flex flex-col space-y-2">
+              <CardTitle className="text-xl font-bold flex items-center">
+                <Newspaper className="h-6 w-6 mr-2" />
+                Real Estate News
+              </CardTitle>
+              <div className="flex flex-wrap gap-2">
+                {newsCategories.map((category) => (
+                  <Badge
+                    key={category}
+                    variant={selectedCategory === category ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedCategory(category)}
+                  >
+                    {category}
+                  </Badge>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2">
+                {newsArticles.map((article) => (
+                  <div key={article.id} className="flex items-start space-x-4">
+                    <Image
+                      src={`/placeholder.svg?height=100&width=100&text=News ${article.id}`}
+                      width={100}
+                      height={100}
+                      alt={`Real Estate News ${article.id}`}
+                      className="rounded-md object-cover"
+                    />
+                    <div>
+                      <h3 className="font-semibold flex items-center">
+                        <Image
+                          src={article.favicon}
+                          width={16}
+                          height={16}
+                          alt={`${article.source} favicon`}
+                          className="mr-2"
+                        />
+                        <Link href={`/news/${article.id}`} className="hover:underline">
+                          {article.title}
+                        </Link>
+                      </h3>
+                      <p className="text-sm text-muted-foreground">Latest trends and insights in the real estate market. This update covers important developments and forecasts for the industry.</p>
+                      <p className="text-xs text-muted-foreground mt-1">{article.date}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    </div>
+  )
+}

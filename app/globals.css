@@ -1,0 +1,319 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* IMPORTANT: Dark theme is enforced app-wide via theme-provider.tsx */
+
+@layer base {
+  :root {
+    --background: 62 0% 99%;
+    --foreground: 240 10% 3.9%;
+    --card: 158 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 158 44.7% 31.2%;
+    --primary-foreground: 0 0% 98.8%;
+    --secondary: 59 16% 95%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 45%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 158 44.7% 31.2%;
+    --destructive: 0 65% 63%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 158 44.7% 31.2%;
+    --radius: 1.2rem;
+    --svg-color: black;
+    --font-sans: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --primary-bg: 158 44.7% 31.2% 0.1; /* Primary Green (bg): rgba(44, 115, 89, 0.1) */
+    --primary-border: 158 44.7% 31.2% 0.3; /* Primary Green (border): rgba(44, 115, 89, 0.3) */
+    --secondary-bg: 152 42% 40% 0.1; /* Secondary Green (bg): rgba(58, 143, 113, 0.1) */
+    --secondary-hover: 152 42% 40% 0.2; /* Secondary Green (hover): rgba(58, 143, 113, 0.2) */
+    --medium-gray: 217 10% 65%; /* Medium Gray: #9ca3af */
+    --light-green-bg: 152 42% 40% 0.1; /* Light Green Background: rgba(58, 143, 113, 0.1) */
+  }
+
+  /* Dark theme variables are now active due to forcedTheme="dark" */
+  .dark {
+    /* Base theme colors */
+    --background: 0 0% 0%; /* Pure black background */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 0%; /* Pure black card */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 0%; /* Pure black popover */
+    --popover-foreground: 0 0% 98%;
+    --primary: 158 44.7% 31.2%;
+    --primary-foreground: 0 0% 98.8%;
+    
+    /* Dark grey accents with no blue tint */
+    --secondary: 0 0% 8%; /* Dark grey with no blue tint: #141414 */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 5%; /* Even darker grey: #0d0d0d */
+    --muted-foreground: 0 0% 64.9%;
+    --accent: 0 0% 12%; /* Slightly lighter grey accent: #1f1f1f */
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 15%; /* Dark grey border: #262626 */
+    --input: 0 0% 10%; /* Dark input background: #1a1a1a */
+    --ring: 158 44.7% 31.2%;
+    --svg-color: white;
+    
+    /* Custom dark theme variables */
+    --dark-card-bg: 0 0% 7%; /* Rich dark grey for cards: #121212 */
+    --dark-card-hover: 0 0% 10%; /* Slightly lighter on hover: #1a1a1a */
+    --dark-card-active: 0 0% 12%; /* Active state: #1f1f1f */
+    
+    /* Subtle variations for layering */
+    --dark-surface-1: 0 0% 5%; /* Base surface: #0d0d0d */
+    --dark-surface-2: 0 0% 8%; /* Elevated surface: #141414 */
+    --dark-surface-3: 0 0% 12%; /* Further elevated: #1f1f1f */
+    
+    /* Complementary green tones */
+    --green-dark: 158 44.7% 20%; /* Darker green: #1c4b3a */
+    --green-main: 158 44.7% 31.2%; /* Main green: #2c7359 */
+    --green-light: 152 42% 40%; /* Lighter green: #3a8f71 */
+  }
+}
+
+.text-wrap {
+  white-space: normal;
+  word-wrap: break-word;
+  font-weight: normal;
+}
+
+.loading {
+  position: relative;
+  overflow: hidden;
+  background-color: #e0e0e0;
+}
+
+.dark .loading {
+  background-color: #333;
+}
+
+.loading::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.5) 50%, transparent 100%);
+  animation: loading 3s infinite;
+}
+
+.dark .loading::before {
+  background: linear-gradient(to right, transparent 0%, rgba(100, 100, 100, 0.5) 50%, transparent 100%);
+}
+
+@keyframes loading {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Override default focus rings */
+  *:focus-visible {
+    @apply outline-none ring-offset-background ring-primary/40 dark:ring-primary/60;
+  }
+}
+
+@keyframes typing {
+  0% { content: 'Writing report'; }
+  25% { content: 'Writing report.'; }
+  50% { content: 'Writing report..'; }
+  75% { content: 'Writing report...'; }
+}
+
+.typing-animation::after {
+  content: 'Writing report';
+  animation: typing 2s infinite;
+}
+
+.text-faded-grey {
+  color: rgba(156, 163, 175, 0.9);
+}
+
+.transparent-bg {
+  background-color: rgba(0, 0, 0, 0.7); /* Pure black with transparency instead of navy blue */
+  backdrop-filter: blur(8px);
+}
+
+/* Add the pulse-quick animation to the existing styles */
+@keyframes pulse-quick {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-quick {
+  animation: pulse-quick 300ms ease-in-out;
+}
+
+/* New utility classes for dark mode styling */
+.dark-card {
+  background-color: hsl(var(--dark-card-bg));
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dark-card:hover {
+  background-color: hsl(var(--dark-card-hover));
+}
+
+.dark-surface-1 {
+  background-color: hsl(var(--dark-surface-1));
+}
+
+.dark-surface-2 {
+  background-color: hsl(var(--dark-surface-2));
+}
+
+.dark-surface-3 {
+  background-color: hsl(var(--dark-surface-3));
+}
+
+.accent-green-dark {
+  background-color: hsl(var(--green-dark));
+}
+
+.accent-green-main {
+  background-color: hsl(var(--green-main));
+}
+
+.accent-green-light {
+  background-color: hsl(var(--green-light));
+}
+
+/* Sidebar-related styles */
+.sidebar-layout {
+  padding-left: 0;
+  transition: padding-left 0.3s ease-in-out;
+}
+
+.sidebar-expanded {
+  padding-left: 16rem; /* w-64 = 16rem */
+}
+
+.sidebar-collapsed {
+  padding-left: 5rem; /* w-20 = 5rem */
+}
+
+@media (max-width: 768px) {
+  .sidebar-expanded {
+    padding-left: 0;
+  }
+  
+  .sidebar-collapsed {
+    padding-left: 0;
+  }
+}
+
+/* Animation to subtly highlight the curved edge */
+@keyframes edge-glow {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.3; }
+}
+
+.sidebar-edge-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(to bottom,
+    rgba(58, 143, 113, 0),
+    rgba(58, 143, 113, 0.6),
+    rgba(58, 143, 113, 0)
+  );
+  animation: edge-glow 4s infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* New animations for sidebar and UI elements */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse-glow {
+  0% { filter: drop-shadow(0 0 0.5rem rgba(58, 143, 113, 0)); }
+  50% { filter: drop-shadow(0 0 0.5rem rgba(58, 143, 113, 0.3)); }
+  100% { filter: drop-shadow(0 0 0.5rem rgba(58, 143, 113, 0)); }
+}
+
+@keyframes scale-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes gentle-rotate {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(3deg); }
+  75% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-scale-pop {
+  animation: scale-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-gentle-rotate {
+  animation: gentle-rotate 3s ease-in-out infinite;
+}
+
+/* Hover effects for sidebar items */
+.sidebar-item-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-item-hover:hover {
+  background-color: rgba(31, 41, 55, 0.5);
+  transform: translateX(4px);
+}
+
+/* Icon container styles */
+.icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.icon-container:hover {
+  transform: scale(1.15);
+}

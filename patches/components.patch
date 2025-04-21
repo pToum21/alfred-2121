@@ -1,0 +1,789 @@
+From 8164fdfad034615b4190b71be405b52f7038ad6c Mon Sep 17 00:00:00 2001
+From: lukeremy32 <l999r32@gmail.com>
+Date: Thu, 27 Mar 2025 10:48:50 -0400
+Subject: [PATCH 1/2] use exa retrieve api instead of jina.  edit retrieve
+ component to show full extracted content.  enhanced error logging.  TO DO:
+ create unit tests for urls of interest...simulate use within AI chat
+
+---
+ components/RetrieveResultCard.tsx | 225 ++++++++++++++++++++++++++++++
+ components/retrieve-section.tsx   |  72 ++++++++--
+ 2 files changed, 282 insertions(+), 15 deletions(-)
+ create mode 100644 components/RetrieveResultCard.tsx
+
+diff --git a/components/RetrieveResultCard.tsx b/components/RetrieveResultCard.tsx
+new file mode 100644
+index 0000000..fb7e8b9
+--- /dev/null
++++ b/components/RetrieveResultCard.tsx
+@@ -0,0 +1,225 @@
++'use client'
++
++import React, { useState } from 'react'
++import { WebSearchResult } from '@/lib/types'
++import { motion, AnimatePresence } from 'framer-motion'
++import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
++import { Button } from '@/components/ui/button'
++import { ChevronDown, ChevronUp, ExternalLink, Calendar, Clock, Globe, Link2 } from 'lucide-react'
++import { ScrollArea } from '@/components/ui/scroll-area'
++import { Badge } from '@/components/ui/badge'
++
++interface RetrieveResultCardProps {
++  result: WebSearchResult;
++}
++
++const RetrieveResultCard: React.FC<RetrieveResultCardProps> = ({ result }) => {
++  const [isExpanded, setIsExpanded] = useState(false)
++  const [isHoveringTitle, setIsHoveringTitle] = useState(false)
++  
++  // Format the date nicely
++  const formatDate = (dateString: string) => {
++    try {
++      const date = new Date(dateString);
++      return new Intl.DateTimeFormat('en-US', { 
++        year: 'numeric', 
++        month: 'long', 
++        day: 'numeric' 
++      }).format(date);
++    } catch (e) {
++      return 'Unknown date';
++    }
++  };
++  
++  // Get the domain name for display
++  const getDomain = (url: string) => {
++    try {
++      const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
++      return urlObj.hostname.replace('www.', '');
++    } catch (e) {
++      return url;
++    }
++  };
++  
++  // Calculate estimated reading time based on words
++  const getReadingTime = (content: string | undefined) => {
++    if (!content) return '< 1 min';
++    
++    // Average reading speed (words per minute)
++    const wordsPerMinute = 200;
++    const wordCount = content.trim().split(/\s+/).length;
++    const minutes = Math.ceil(wordCount / wordsPerMinute);
++    
++    if (minutes < 1) return '< 1 min';
++    return `${minutes} min${minutes > 1 ? 's' : ''}`;
++  };
++  
++  // Format the content with basic markdown-like rendering
++  const formatContent = (content: string) => {
++    // Split by double newlines for paragraphs
++    const paragraphs = content.split(/\n\n+/);
++    
++    return (
++      <>
++        {paragraphs.map((paragraph, i) => {
++          // Check if it's a header
++          if (paragraph.startsWith('# ')) {
++            return (
++              <h1 key={i} className="text-xl font-semibold text-foreground/90 mt-6 mb-3 tracking-tight">
++                {paragraph.replace('# ', '')}
++              </h1>
++            );
++          } else if (paragraph.startsWith('## ')) {
++            return (
++              <h2 key={i} className="text-lg font-semibold text-foreground/85 mt-5 mb-2 tracking-tight">
++                {paragraph.replace('## ', '')}
++              </h2>
++            );
++          } else if (paragraph.startsWith('### ')) {
++            return (
++              <h3 key={i} className="text-base font-medium text-foreground/80 mt-4 mb-2">
++                {paragraph.replace('### ', '')}
++              </h3>
++            );
++          } else if (paragraph.startsWith('- ')) {
++            // Handle list items
++            const items = paragraph.split('\n');
++            return (
++              <ul key={i} className="list-disc pl-6 my-3 space-y-1.5 text-foreground/75">
++                {items.map((item, j) => (
++                  <li key={j} className="text-sm leading-relaxed">
++                    {item.replace('- ', '')}
++                  </li>
++                ))}
++              </ul>
++            );
++          } else if (paragraph.trim() === '') {
++            return null;
++          } else {
++            // Regular paragraph
++            return (
++              <p key={i} className="text-sm text-foreground/75 my-3 leading-relaxed">
++                {paragraph}
++              </p>
++            );
++          }
++        })}
++      </>
++    );
++  };
++
++  return (
++    <Card className="w-full overflow-hidden border border-border/5 bg-card/30 backdrop-blur-sm shadow-sm transition-all duration-300 hover:shadow-md hover:border-border/20">
++      <CardHeader className="pb-3 pt-5 px-5">
++        <div className="flex items-center justify-between mb-1.5">
++          <div className="flex items-center space-x-2.5 flex-1 min-w-0">
++            <div className="relative flex-shrink-0 p-1 rounded-md bg-background/80 border border-border/10">
++              <img 
++                src={`https://www.google.com/s2/favicons?domain=${getDomain(result.url)}&sz=64`}
++                alt=""
++                className="w-4 h-4 rounded-sm"
++              />
++            </div>
++            
++            <div className="flex-1 min-w-0 relative group">
++              <a 
++                href={result.url} 
++                target="_blank" 
++                rel="noopener noreferrer"
++                className="inline-block max-w-full"
++                onMouseEnter={() => setIsHoveringTitle(true)}
++                onMouseLeave={() => setIsHoveringTitle(false)}
++              >
++                <CardTitle className="text-base font-medium text-foreground tracking-tight truncate group-hover:text-primary transition-colors relative">
++                  {result.name}
++                  <div className={`absolute -bottom-0.5 left-0 w-full h-px bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`} />
++                </CardTitle>
++                
++                <div className="absolute top-1/2 -translate-y-1/2 -right-5 opacity-0 group-hover:opacity-100 transition-opacity">
++                  <Link2 className="w-3 h-3 text-primary" />
++                </div>
++              </a>
++            </div>
++          </div>
++          
++          <Badge variant="secondary" className="text-[10px] px-2 py-0 h-5 font-normal bg-background/60 hover:bg-background/80 text-foreground/70 flex-shrink-0 ml-2">
++            <Clock className="w-2.5 h-2.5 mr-1 text-primary/70" />
++            {getReadingTime(result.fullContent)}
++          </Badge>
++        </div>
++        
++        <div className="flex items-center text-[11px] text-muted-foreground/60">
++          <Calendar className="w-3 h-3 mr-1 text-muted-foreground/50" />
++          <span>{formatDate(result.datePublished)}</span>
++          <span className="mx-1.5 text-muted-foreground/30">•</span>
++          <Globe className="w-3 h-3 mr-1 text-muted-foreground/50" />
++          <span>{getDomain(result.url)}</span>
++        </div>
++      </CardHeader>
++      
++      <CardContent className="px-5 pt-0 pb-4">
++        {/* Preview snippet */}
++        {!isExpanded && (
++          <div className="relative">
++            <p className="text-sm text-muted-foreground/70 line-clamp-3 leading-relaxed">
++              {result.snippet}
++            </p>
++            <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-card/90 to-transparent"></div>
++          </div>
++        )}
++        
++        {/* Expanded content */}
++        <AnimatePresence>
++          {isExpanded && (
++            <motion.div
++              initial={{ opacity: 0, height: 0 }}
++              animate={{ opacity: 1, height: 'auto' }}
++              exit={{ opacity: 0, height: 0 }}
++              transition={{ duration: 0.3, ease: "easeInOut" }}
++              className="mt-1"
++            >
++              <ScrollArea className="max-h-[500px] pr-4 overflow-y-auto pb-2 relative">
++                <div className="prose prose-sm max-w-none text-foreground/80">
++                  {result.fullContent && formatContent(result.fullContent)}
++                </div>
++              </ScrollArea>
++            </motion.div>
++          )}
++        </AnimatePresence>
++        
++        <div className="flex justify-between items-center mt-4 pt-2 border-t border-border/5">
++          <Button 
++            variant="ghost" 
++            size="sm" 
++            onClick={() => setIsExpanded(!isExpanded)}
++            className="text-xs font-normal text-muted-foreground hover:text-foreground/80 hover:bg-background/50 h-7 px-2 rounded-md transition-colors"
++          >
++            {isExpanded ? (
++              <>
++                <ChevronUp className="w-3.5 h-3.5 mr-1.5 text-muted-foreground/70" />
++                <span>Collapse content</span>
++              </>
++            ) : (
++              <>
++                <ChevronDown className="w-3.5 h-3.5 mr-1.5 text-muted-foreground/70" />
++                <span>Expand content</span>
++              </>
++            )}
++          </Button>
++          
++          <a 
++            href={result.url} 
++            target="_blank" 
++            rel="noopener noreferrer"
++            className="text-xs font-normal text-primary/80 hover:text-primary flex items-center gap-1 hover:underline transition-colors"
++          >
++            <span>View original</span>
++            <ExternalLink className="w-3 h-3" />
++          </a>
++        </div>
++      </CardContent>
++    </Card>
++  )
++}
++
++export default RetrieveResultCard 
+\ No newline at end of file
+diff --git a/components/retrieve-section.tsx b/components/retrieve-section.tsx
+index ba2269c..4d9adc6 100644
+--- a/components/retrieve-section.tsx
++++ b/components/retrieve-section.tsx
+@@ -1,10 +1,11 @@
+ 'use client'
+ 
+ import React, { useEffect } from 'react'
+-import SearchResults from '@/components/search-results'
+ import { SearchResults as SearchResultsType } from '@/lib/types'
+ import { motion } from 'framer-motion'
+ import { Card } from '@/components/ui/card'
++import RetrieveResultCard from '@/components/RetrieveResultCard'
++import { AlertCircle, RefreshCw } from 'lucide-react'
+ 
+ interface RetrieveSectionProps {
+   data: SearchResultsType;
+@@ -20,10 +21,30 @@ const RetrieveSection: React.FC<RetrieveSectionProps> = ({ data, analysisTime =
+   // Handle error state
+   if (data.status === 'error' || data.error) {
+     return (
+-      <div className="space-y-3">
+-        <Card className="p-4 mt-2 text-sm text-red-500">
+-          {data.error || "An error occurred while retrieving content. The assistant will continue with available information."}
+-        </Card>
++      <div className="space-y-3 mb-6">
++        <motion.div
++          initial={{ opacity: 0, y: 10 }}
++          animate={{ opacity: 1, y: 0 }}
++          transition={{ duration: 0.3 }}
++        >
++          <Card className="p-5 rounded-lg border border-border/10 bg-background/50 backdrop-blur-sm shadow-sm overflow-hidden">
++            <div className="flex items-start gap-3">
++              <div className="rounded-full bg-red-100/20 p-2 flex-shrink-0">
++                <AlertCircle className="h-5 w-5 text-red-400" />
++              </div>
++              <div className="flex-1 space-y-1.5">
++                <h3 className="text-sm font-medium text-foreground/90">Unable to Retrieve Content</h3>
++                <p className="text-sm text-muted-foreground/80 leading-relaxed">
++                  {data.error || "We couldn't access the content from this website. The assistant will continue with available information."}
++                </p>
++                <div className="pt-2 flex items-center text-xs text-muted-foreground/60">
++                  <RefreshCw className="h-3 w-3 mr-1.5 text-muted-foreground/40" />
++                  <span>Retrieval attempted in {analysisTime.toFixed(1)}s</span>
++                </div>
++              </div>
++            </div>
++          </Card>
++        </motion.div>
+       </div>
+     )
+   }
+@@ -31,10 +52,30 @@ const RetrieveSection: React.FC<RetrieveSectionProps> = ({ data, analysisTime =
+   // Handle empty results
+   if (data.webResults.length === 0 && data.pineconeResults.length === 0) {
+     return (
+-      <div className="space-y-3">
+-        <Card className="p-4 mt-2 text-sm">
+-          No content was retrieved. The assistant will continue with available information.
+-        </Card>
++      <div className="space-y-3 mb-6">
++        <motion.div
++          initial={{ opacity: 0, y: 10 }}
++          animate={{ opacity: 1, y: 0 }}
++          transition={{ duration: 0.3 }}
++        >
++          <Card className="p-5 rounded-lg border border-border/10 bg-background/50 backdrop-blur-sm shadow-sm overflow-hidden">
++            <div className="flex items-start gap-3">
++              <div className="rounded-full bg-amber-100/20 p-2 flex-shrink-0">
++                <AlertCircle className="h-5 w-5 text-amber-400" />
++              </div>
++              <div className="flex-1 space-y-1.5">
++                <h3 className="text-sm font-medium text-foreground/90">No Content Found</h3>
++                <p className="text-sm text-muted-foreground/80 leading-relaxed">
++                  No content was retrieved. The assistant will continue with available information.
++                </p>
++                <div className="pt-2 flex items-center text-xs text-muted-foreground/60">
++                  <RefreshCw className="h-3 w-3 mr-1.5 text-muted-foreground/40" />
++                  <span>Retrieval attempted in {analysisTime.toFixed(1)}s</span>
++                </div>
++              </div>
++            </div>
++          </Card>
++        </motion.div>
+       </div>
+     )
+   }
+@@ -57,7 +98,7 @@ const RetrieveSection: React.FC<RetrieveSectionProps> = ({ data, analysisTime =
+     : analysisTime.toFixed(1);
+ 
+   return (
+-    <div className="space-y-3">
++    <div className="space-y-3 mb-6">
+       <motion.div 
+         className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-muted/50 w-fit"
+         initial={{ opacity: 0, y: 10 }}
+@@ -72,14 +113,15 @@ const RetrieveSection: React.FC<RetrieveSectionProps> = ({ data, analysisTime =
+           />
+         </div>
+         <span className="text-xs font-medium">
+-          Analyzed {hostname} in {analysisTime < 0.1 ? analysisTime.toFixed(2) : analysisTime < 1 ? analysisTime.toFixed(1) : Math.round(analysisTime)}s
++          Retrieved content from {hostname} in {analysisTime < 0.1 ? analysisTime.toFixed(2) : analysisTime < 1 ? analysisTime.toFixed(1) : Math.round(analysisTime)}s
+         </span>
+       </motion.div>
+       
+-      <SearchResults 
+-        webResults={data.webResults} 
+-        pineconeResults={data.pineconeResults}
+-      />
++      <div className="space-y-4">
++        {data.webResults.map((result, index) => (
++          <RetrieveResultCard key={`${result.url}-${index}`} result={result} />
++        ))}
++      </div>
+     </div>
+   )
+ }
+-- 
+2.39.5 (Apple Git-154)
+
+
+From d165a706198a9541faa96e06b12a6e6e67239c1e Mon Sep 17 00:00:00 2001
+From: lukeremy32 <l999r32@gmail.com>
+Date: Thu, 27 Mar 2025 13:26:09 -0400
+Subject: [PATCH 2/2] add search results dialogue to see content and remove
+ extraction of google results to reduce latency of search
+
+---
+ components/search-result-dialog.tsx | 131 +++++++++++++++
+ components/search-results.tsx       | 243 ++++++++++++++++------------
+ 2 files changed, 274 insertions(+), 100 deletions(-)
+ create mode 100644 components/search-result-dialog.tsx
+
+diff --git a/components/search-result-dialog.tsx b/components/search-result-dialog.tsx
+new file mode 100644
+index 0000000..81a4dc0
+--- /dev/null
++++ b/components/search-result-dialog.tsx
+@@ -0,0 +1,131 @@
++import React from 'react';
++import {
++  Dialog,
++  DialogContent,
++  DialogDescription,
++  DialogHeader,
++  DialogTitle,
++  DialogTrigger,
++  DialogFooter,
++  DialogClose
++} from "@/components/ui/dialog";
++import { WebSearchResult, PineconeSearchResult } from '@/lib/types';
++import { ScrollArea } from '@/components/ui/scroll-area';
++import { formatDistanceToNow, parseISO } from 'date-fns';
++import { ExternalLink, Calendar, Database, Search, Clock } from 'lucide-react';
++import { Button } from '@/components/ui/button';
++import { motion } from 'framer-motion';
++
++type SearchResultDialogProps = {
++  result: WebSearchResult | PineconeSearchResult;
++  children: React.ReactNode;
++};
++
++const formatDate = (dateString: string | number): string => {
++  if (!dateString) return 'Unknown';
++  try {
++    let dateStr = dateString.toString();
++    
++    if (dateStr.match(/^\d{8}$/)) {
++      const year = dateStr.substring(0, 4);
++      const month = dateStr.substring(4, 6);
++      const day = dateStr.substring(6, 8);
++      dateStr = `${year}-${month}-${day}`;
++    }
++    
++    const parsedDate = parseISO(dateStr);
++    return formatDistanceToNow(parsedDate, { addSuffix: true });
++  } catch (error) {
++    return 'Unknown';
++  }
++};
++
++export function SearchResultDialog({ result, children }: SearchResultDialogProps) {
++  // Extract the hostname from the URL for display
++  const hostname = React.useMemo(() => {
++    try {
++      return new URL(result.url).hostname.replace('www.', '');
++    } catch {
++      return 'unknown source';
++    }
++  }, [result.url]);
++  
++  // Get the title based on result type
++  const title = result.source === 'google' 
++    ? result.title || result.name 
++    : result.title;
++  
++  // Get the content based on result type
++  const content = result.source === 'google' 
++    ? result.fullContent || result.snippet || 'No content available'
++    : result.fullContent || result.context || 'No content available';
++    
++  // Get the date based on result type
++  const date = result.source === 'google'
++    ? formatDate(result.datePublished || '')
++    : formatDate(result.date || '');
++    
++  return (
++    <Dialog>
++      <DialogTrigger asChild>
++        {children}
++      </DialogTrigger>
++      <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
++        <DialogHeader>
++          <DialogTitle className="pr-10 flex items-start gap-2 text-lg">
++            {result.source === 'google' ? (
++              <Search className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
++            ) : (
++              <Database className="h-5 w-5 text-violet-500 mt-0.5 flex-shrink-0" />
++            )}
++            <span className="flex-1">{title}</span>
++          </DialogTitle>
++          <DialogDescription className="flex items-center justify-between text-sm mt-1">
++            <div className="flex items-center gap-1.5">
++              <span className="text-muted-foreground/90">{hostname}</span>
++              <div className="flex items-center text-muted-foreground/70 text-xs">
++                <Calendar className="h-3 w-3 mr-1" />
++                {date}
++              </div>
++            </div>
++            <div className="flex items-center gap-1 text-xs">
++              <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground/80">
++                {result.source === 'google' ? 'Search Engine' : 'Knowledgebase'}
++              </span>
++            </div>
++          </DialogDescription>
++        </DialogHeader>
++        
++        <div className="flex-1 overflow-hidden mt-2 border rounded-md">
++          <ScrollArea className="h-[50vh] p-4 text-sm">
++            <div className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
++              {content}
++            </div>
++          </ScrollArea>
++        </div>
++        
++        <DialogFooter className="flex items-center justify-between mt-4 gap-4">
++          <div className="text-xs text-muted-foreground flex items-center">
++            <Clock className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
++            <span>
++              ALFReD {result.source === 'google' ? 'searched' : 'retrieved'} this content to help answer your question
++            </span>
++          </div>
++          <div className="flex gap-2">
++            <DialogClose asChild>
++              <Button variant="outline" size="sm">Close</Button>
++            </DialogClose>
++            <Button 
++              size="sm"
++              onClick={() => window.open(result.url, '_blank')}
++              className="gap-1.5"
++            >
++              <ExternalLink className="h-3.5 w-3.5" />
++              Visit Source
++            </Button>
++          </div>
++        </DialogFooter>
++      </DialogContent>
++    </Dialog>
++  );
++} 
+\ No newline at end of file
+diff --git a/components/search-results.tsx b/components/search-results.tsx
+index 1065117..49ea484 100644
+--- a/components/search-results.tsx
++++ b/components/search-results.tsx
+@@ -5,32 +5,11 @@ import { Card, CardContent } from "@/components/ui/card"
+ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+ import Image from 'next/image'
+ import { formatDistanceToNow, parseISO } from 'date-fns'
+-import { ExternalLink, Clock, Archive } from 'lucide-react'
++import { ExternalLink, Clock, Archive, FileText } from 'lucide-react'
+ import { motion } from 'framer-motion'
+-
+-interface WebSearchResult {
+-  name: string;
+-  url: string;
+-  source: 'google';
+-  datePublished: string;
+-  snippet?: string;
+-  fullContent?: string;
+-}
+-
+-interface PineconeSearchResult {
+-  title: string;
+-  url: string;
+-  source: 'pinecone';
+-  date: string | number;
+-  fullContent: string;
+-  context?: string;
+-  documentSummary?: string;
+-  qualityScore?: string;
+-  searchTerms?: string;
+-  totalChunks?: number;
+-  chunkIndex?: number;
+-  isPDF?: boolean;
+-}
++import { SearchResultDialog } from './search-result-dialog'
++import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
++import { WebSearchResult, PineconeSearchResult } from '@/lib/types'
+ 
+ export interface SearchResultsProps {
+   webResults: WebSearchResult[];
+@@ -57,13 +36,53 @@ const formatDate = (dateString: string | number): string => {
+ };
+ 
+ export default function SearchResults({ webResults, pineconeResults = [] }: SearchResultsProps) {
+-  const seenUrls = new Set<string>();
+-  const uniqueResults = [...webResults, ...(pineconeResults || [])].filter(result => {
+-    if (!result?.url) return false;
+-    if (seenUrls.has(result.url)) return false;
+-    seenUrls.add(result.url);
+-    return true;
+-  });
++  // Deduplicate but ensure we don't lose all Pinecone results
++  const combinedResults = () => {
++    // Create maps to track results by URL for each source
++    const googleResultsByUrl = new Map<string, WebSearchResult>();
++    const pineconeResultsByUrl = new Map<string, PineconeSearchResult>();
++    
++    // Populate the maps
++    webResults.forEach(result => {
++      if (result?.url) {
++        googleResultsByUrl.set(result.url.toLowerCase(), result);
++      }
++    });
++    
++    pineconeResults.forEach(result => {
++      if (result?.url) {
++        pineconeResultsByUrl.set(result.url.toLowerCase(), result);
++      }
++    });
++    
++    // Track URLs we've already added to the final results
++    const includedUrls = new Set<string>();
++    const finalResults = [];
++    
++    // First, add all Pinecone results
++    for (const [url, result] of pineconeResultsByUrl.entries()) {
++      finalResults.push(result);
++      includedUrls.add(url);
++    }
++    
++    // Next, add unique Google results (not in Pinecone)
++    for (const [url, result] of googleResultsByUrl.entries()) {
++      if (!includedUrls.has(url)) {
++        finalResults.push(result);
++        includedUrls.add(url);
++      }
++    }
++    
++    return finalResults;
++  };
++  
++  const uniqueResults = combinedResults();
++  
++  // Debug counts for development
++  const googleCount = uniqueResults.filter(r => r.source === 'google').length;
++  const pineconeCount = uniqueResults.filter(r => r.source === 'pinecone').length;
++  
++  console.log(`Displaying ${uniqueResults.length} total results (${googleCount} Google, ${pineconeCount} Pinecone)`);
+ 
+   if (uniqueResults.length === 0) {
+     return (
+@@ -102,74 +121,98 @@ export default function SearchResults({ webResults, pineconeResults = [] }: Sear
+   };
+ 
+   return (
+-    <motion.div 
+-      className="flex gap-2 pb-2 items-stretch w-max"
+-      variants={container}
+-      initial="hidden"
+-      animate="show"
+-    >
+-      {uniqueResults.map((result, index) => (
+-        <motion.a
+-          key={`${result.url}-${index}`}
+-          href={result.url}
+-          target="_blank"
+-          rel="noopener noreferrer"
+-          className="block w-[200px] shrink-0 group"
+-          variants={item}
+-          whileHover={{ 
+-            scale: 1.02,
+-            transition: { duration: 0.2 }
+-          }}
+-        >
+-          <div className="relative h-full rounded-lg bg-background/50 hover:bg-background/80 transition-all duration-200 p-3 border border-border/5 hover:border-border/20 hover:shadow-lg">
+-            <div className="flex items-center gap-2 mb-2">
+-              <div className="relative">
+-                <Image
+-                  src={`https://www.google.com/s2/favicons?domain=${new URL(result.url).hostname}&sz=32`}
+-                  alt=""
+-                  width={12}
+-                  height={12}
+-                  className="w-3 h-3 transition-opacity group-hover:opacity-0 duration-200"
+-                />
+-                <ExternalLink className="w-3 h-3 absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-primary" />
+-              </div>
+-              <motion.h3 
+-                className="text-xs font-medium text-primary/90 group-hover:text-primary transition-colors duration-200 truncate flex-1"
+-                layout
+-              >
+-                {result.source === 'google' ? result.name : result.title}
+-              </motion.h3>
+-            </div>
+-            
+-            <motion.p 
+-              className="text-[10px] leading-relaxed text-muted-foreground/70 group-hover:text-muted-foreground/90 transition-colors duration-200 line-clamp-3 mb-2 min-h-[36px]"
+-              layout
++    <TooltipProvider>
++      <motion.div 
++        className="flex gap-2 pb-4 items-stretch overflow-visible flex-nowrap"
++        variants={container}
++        initial="hidden"
++        animate="show"
++      >
++        {uniqueResults.map((result, index) => (
++          <SearchResultDialog key={`dialog-${result.url}-${index}-${result.source}`} result={result}>
++            <motion.div
++              key={`${result.url}-${index}-${result.source}`}
++              className="block w-[200px] shrink-0 group cursor-pointer relative"
++              variants={item}
++              whileHover={{ 
++                scale: 1.02,
++                transition: { duration: 0.2 }
++              }}
+             >
+-              {result.source === 'pinecone'
+-                ? result.fullContent?.substring(0, 120)
+-                : result.snippet || ''}
+-            </motion.p>
+-            
+-            <div className="flex items-center justify-between">
+-              <motion.div 
+-                className="flex items-center text-[9px] text-muted-foreground/50 group-hover:text-muted-foreground/70 transition-colors duration-200"
+-                layout
+-              >
+-                {result.source === 'google' ? (
+-                  <Clock className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
+-                ) : (
+-                  <Archive className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
+-                )}
+-                <span className="truncate">
+-                  {result.source === 'google'
+-                    ? formatDate(result.datePublished || '')
+-                    : formatDate(result.date || '')}
+-                </span>
+-              </motion.div>
+-            </div>
+-          </div>
+-        </motion.a>
+-      ))}
+-    </motion.div>
++              <div className={`relative h-full rounded-lg ${result.source === 'pinecone' ? 'bg-primary/5' : 'bg-background/50'} hover:bg-background/80 transition-all duration-200 p-3 border border-border/5 hover:border-border/20 hover:shadow-lg`}>
++                {/* Content icon button */}
++                <Tooltip>
++                  <TooltipTrigger asChild>
++                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
++                      <div className="p-1 rounded-full bg-background/70 backdrop-blur-sm hover:bg-background border border-border/10 hover:border-border/30 text-muted-foreground hover:text-foreground transition-all">
++                        <FileText className="h-3.5 w-3.5" />
++                      </div>
++                    </div>
++                  </TooltipTrigger>
++                  <TooltipContent>
++                    <p className="text-xs">View Source Content</p>
++                  </TooltipContent>
++                </Tooltip>
++                
++                <div className="flex items-center gap-2 mb-2">
++                  <div className="relative">
++                    <Image
++                      src={`https://www.google.com/s2/favicons?domain=${new URL(result.url).hostname}&sz=32`}
++                      alt=""
++                      width={12}
++                      height={12}
++                      className="w-3 h-3 transition-opacity group-hover:opacity-0 duration-200"
++                    />
++                    <ExternalLink className="w-3 h-3 absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-primary" />
++                  </div>
++                  <motion.h3 
++                    className="text-xs font-medium text-primary/90 group-hover:text-primary transition-colors duration-200 truncate flex-1"
++                    layout
++                  >
++                    {result.source === 'google' ? result.name : result.title}
++                  </motion.h3>
++                </div>
++                
++                <motion.p 
++                  className="text-[10px] leading-relaxed text-muted-foreground/70 group-hover:text-muted-foreground/90 transition-colors duration-200 line-clamp-3 mb-2 min-h-[36px]"
++                  layout
++                >
++                  {result.source === 'pinecone'
++                    ? result.fullContent?.substring(0, 120)
++                    : result.snippet || ''}
++                </motion.p>
++                
++                <div className="flex items-center justify-between">
++                  <motion.div 
++                    className="flex items-center text-[9px] text-muted-foreground/50 group-hover:text-muted-foreground/70 transition-colors duration-200"
++                    layout
++                  >
++                    <Clock className="w-2.5 h-2.5 mr-1 flex-shrink-0" />
++                    <span className="truncate">
++                      {result.source === 'google'
++                        ? formatDate(result.datePublished || '')
++                        : formatDate(result.date || '')}
++                    </span>
++                  </motion.div>
++                </div>
++              </div>
++              
++              {/* Add a click interceptor for external links */}
++              <a 
++                href={result.url} 
++                target="_blank" 
++                rel="noopener noreferrer"
++                className="absolute inset-0 opacity-0"
++                onClick={(e) => {
++                  // Stop propagation to prevent dialog from opening on direct link click
++                  e.stopPropagation();
++                }}
++                aria-hidden="true"
++              />
++            </motion.div>
++          </SearchResultDialog>
++        ))}
++      </motion.div>
++    </TooltipProvider>
+   );
+ }
+\ No newline at end of file
+-- 
+2.39.5 (Apple Git-154)
+

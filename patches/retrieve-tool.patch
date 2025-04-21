@@ -1,0 +1,180 @@
+From 8164fdfad034615b4190b71be405b52f7038ad6c Mon Sep 17 00:00:00 2001
+From: lukeremy32 <l999r32@gmail.com>
+Date: Thu, 27 Mar 2025 10:48:50 -0400
+Subject: [PATCH] use exa retrieve api instead of jina.  edit retrieve
+ component to show full extracted content.  enhanced error logging.  TO DO:
+ create unit tests for urls of interest...simulate use within AI chat
+
+---
+ lib/agents/tools/retrieve.tsx | 120 ++++++++++++++++++++++++++++------
+ 1 file changed, 101 insertions(+), 19 deletions(-)
+
+diff --git a/lib/agents/tools/retrieve.tsx b/lib/agents/tools/retrieve.tsx
+index 465211a..6bd789b 100644
+--- a/lib/agents/tools/retrieve.tsx
++++ b/lib/agents/tools/retrieve.tsx
+@@ -29,30 +29,90 @@ export const retrieveTool = ({ uiStream, fullResponse }: ToolProps) => ({
+     }
+ 
+     try {
+-      const response = await fetch(`https://r.jina.ai/${url}`, {
+-        method: 'GET',
++      // Use Exa AI contents API instead of Jina
++      console.log('Retrieving content from Exa API for:', url)
++      
++      // Create abort controller for timeout
++      const controller = new AbortController();
++      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second client-side timeout
++      
++      const response = await fetch('https://api.exa.ai/contents', {
++        method: 'POST',
+         headers: {
+-          Accept: 'application/json',
+-          'X-With-Generated-Alt': 'true'
++          'Content-Type': 'application/json',
++          'Authorization': `Bearer ${process.env.EXA_API_KEY}`
++        },
++        signal: controller.signal,
++        body: JSON.stringify({
++          urls: [url],
++          text: true,               // Get full text content
++          summary: false,           // Don't need summary
++          highlights: false,        // Don't need highlights
++          livecrawl: 'fallback',    // Use livecrawl as fallback when cache is empty
++          livecrawlTimeout: 10000   // 10 seconds timeout for live crawling (maximum allowed by Exa)
++        })
++      }).finally(() => {
++        clearTimeout(timeoutId);
++      });
++
++      if (!response.ok) {
++        const errorText = await response.text();
++        console.error(`Exa API error: ${response.status}`, errorText);
++        
++        // Create a user-friendly error message based on the error type
++        let userFriendlyError = "Sorry, we couldn't retrieve the content from this website.";
++        
++        try {
++          const errorJson = JSON.parse(errorText);
++          if (errorJson.tag === "NO_CONTENT_FOUND") {
++            userFriendlyError = "Sorry, we couldn't access the content from this website. It may be protected or require a subscription.";
++          } else if (errorJson.tag === "INVALID_REQUEST_BODY") {
++            userFriendlyError = "There was an issue with the URL format. Please check that it's a valid web address.";
++          } else if (errorJson.tag === "RATE_LIMITED") {
++            userFriendlyError = "We've reached our limit for content retrieval. Please try again in a moment.";
++          }
++          // Log the actual error for debugging
++          console.debug(`Original error: ${errorJson.error}`);
++        } catch (e) {
++          // If error parsing fails, use default message
++          console.debug(`Error parsing error response: ${e}`);
+         }
+-      })
++        
++        throw new Error(userFriendlyError);
++      }
+ 
+-      const json = await response.json()
++      const json = await response.json();
++      console.log('Exa API response received:', {
++        requestId: json.requestId,
++        resultsCount: json.results?.length
++      });
+ 
+-      if (!json.data || json.data.length === 0) {
++      if (!json.results || json.results.length === 0) {
+         hasError = true
+         results.status = 'error'
+-        results.error = `Failed to retrieve content from "${url}". No data returned.`
++        results.error = `Failed to retrieve content from "${url}". No content returned.`
+       } else {
+-        const content = json.data.content.length > 5000 ? json.data.content.slice(0, 5000) : json.data.content
++        const result = json.results[0];
++        
++        // Check if we have actual text content
++        if (!result.text || result.text.trim() === '') {
++          console.log('Empty content received for:', url);
++          throw new Error(`Sorry, we couldn't find any readable text content on this page.`);
++        }
++        
++        // Use the complete text without truncation
++        const content = result.text;
++        
++        // For the snippet, just use the first ~200 chars of content for display purposes
++        const snippet = content.substring(0, 200) + (content.length > 200 ? '...' : '');
+         
+         const webResult: WebSearchResult = {
+-          name: json.data.title,
+-          url: json.data.url,
+-          snippet: content.slice(0, 200) + '...',
+-          fullContent: content,
+-          source: 'google',
+-          datePublished: new Date().toISOString()
++          name: result.title || url,
++          url: result.url || url,
++          snippet: snippet,              // Only used for display in the UI, not truncating full content
++          fullContent: content,          // Store the complete content without truncation
++          source: 'google',              // Keep for compatibility
++          datePublished: result.publishedDate || new Date().toISOString()
+         }
+ 
+         results = {
+@@ -62,13 +122,28 @@ export const retrieveTool = ({ uiStream, fullResponse }: ToolProps) => ({
+           images: [],
+           status: 'complete'
+         }
++        
++        // Log successful response processing
++        console.log('Processed Exa results:', {
++          title: webResult.name,
++          contentLength: content.length,
++          url: webResult.url
++        });
+       }
+     } catch (error) {
+       hasError = true
++      
++      // Handle abortion errors specially
++      const errorMessage = error instanceof DOMException && error.name === 'AbortError'
++        ? `Sorry, it's taking too long to retrieve content from this website. Please try again later.`
++        : `${error}`;
++      
+       console.error('Retrieve API error:', error)
+-      fullResponse += `\nError: ${error}. Failed to retrieve "${url}".`
++      
++      // Don't add raw error to fullResponse, keep the assistant response clean
++      fullResponse += `\nWe encountered an issue retrieving content from "${url}".`
+       results.status = 'error'
+-      results.error = `Failed to retrieve "${url}": ${error}`
++      results.error = errorMessage // Use our friendly error message
+       
+       const analysisTime = calculateAnalysisTime(startTime);
+       console.log(`Retrieve error analysis time: ${analysisTime}s`)
+@@ -79,7 +154,7 @@ export const retrieveTool = ({ uiStream, fullResponse }: ToolProps) => ({
+     }
+ 
+     if (hasError) {
+-      fullResponse += `\nAn error occurred while retrieving "${url}".`
++      fullResponse += `\nWe couldn't retrieve the content you requested.`
+       const analysisTime = calculateAnalysisTime(startTime);
+       console.log(`Retrieve error analysis time: ${analysisTime}s`)
+       uiStream.update(
+@@ -91,7 +166,14 @@ export const retrieveTool = ({ uiStream, fullResponse }: ToolProps) => ({
+     if (results.webResults.length > 0) {
+       const analysisTime = calculateAnalysisTime(startTime);
+       console.log(`Retrieve success analysis time: ${analysisTime}s`)
+-      console.log(`# ${results.webResults[0].name}\n\n${results.webResults[0].fullContent}\n\n[Read more](${results.webResults[0].url})`)
++      
++      // Ensure that webResults[0] exists and has a fullContent property before logging
++      const firstResult = results.webResults[0];
++      if (firstResult && firstResult.fullContent) {
++        const previewText = firstResult.fullContent.substring(0, 500) + '...';
++        console.log(`# ${firstResult.name}\n\n${previewText}\n\n[Read more](${firstResult.url})`);
++      }
++      
+       uiStream.update(<RetrieveSection data={results} analysisTime={analysisTime} />)
+     }
+ 
+-- 
+2.39.5 (Apple Git-154)
+

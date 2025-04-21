@@ -1,0 +1,4 @@
+Please give an incredibly comprehensive overview of how my auth process works.  Give specifics for the flow for registration, login, and totp when applicable.  Discuss the full flow of data and all of the tables that should be populated, and when.  Be thorough and search the code for any context you need @config.ts @index.ts @schema.sql @auth.ts @auth.ts @auth.ts @auth-form.tsx @auth-context.ts @auth-provider.tsx@totp.ts @totp.ts 
+
+
+Please find any discrepancies or issues with the flow and current set up.  DONT APPLY ANY CHANGES YET.  JUST EVALUATE THOROUGHLY AND GET BACK TO ME

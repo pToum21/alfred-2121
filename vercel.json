@@ -1,0 +1,7 @@
+{
+    "functions": {
+      "app/search/**/*.ts": {
+        "memory": 3009
+      }
+    }
+  }
