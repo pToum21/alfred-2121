@@ -22,7 +22,8 @@ import {
   ChevronRight,
   MessageSquare,
   FileSpreadsheet,
-  LayoutDashboard
+  LayoutDashboard,
+  Users
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -50,7 +51,8 @@ export function Sidebar() {
     home: "#3a8f71",
     chat: "#61b992",
     dashboard: "#4db6a5",
-    tracker: "#ebb142"
+    tracker: "#ebb142",
+    social: "#4a9eff"
   };
   
   // Navigation items
@@ -58,7 +60,8 @@ export function Sidebar() {
     { name: "Home", icon: Home, path: "/home", color: iconColors.home },
     { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard", color: iconColors.dashboard },
     { name: "Chat", icon: MessageSquare, path: "/chat", color: iconColors.chat },
-    { name: "Tracker", icon: FileSpreadsheet, path: "/tracker", color: iconColors.tracker }
+    { name: "Tracker", icon: FileSpreadsheet, path: "/tracker", color: iconColors.tracker },
+    { name: "Social", icon: Users, path: "/social", color: iconColors.social }
   ];
   
   // Fetch user email from token on client side
