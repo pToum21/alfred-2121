@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MessageSquare, Heart, Share, Image as ImageIcon, Link as LinkIcon } from "lucide-react"
 
 // Mock data
+
 const MOCK_POSTS = [
   {
     id: '1',
